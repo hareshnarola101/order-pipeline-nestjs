@@ -9,5 +9,10 @@ module.exports = {
   moduleNameMapper: {
     '^@app/(common|database|messaging)(|/.*)$': '<rootDir>/libs/$1/src$2',
   },
-  collectCoverageFrom: ['apps/**/src/**/*.ts', 'libs/**/src/**/*.ts', '!**/main.ts', '!**/index.ts'],
+  collectCoverageFrom: [
+    'apps/**/src/**/*.ts',
+    'libs/**/src/**/*.ts',
+    '!**/main.ts',
+    '!**/index.ts',
+  ],
 };
