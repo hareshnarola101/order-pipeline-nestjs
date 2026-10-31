@@ -14,7 +14,10 @@ function requestId(req: IncomingMessage, res: ServerResponse): string {
   return id;
 }
 
-/** JSON logs with a service name, request ids and secrets redacted. */
+/**
+ * JSON logs with a service name and a request id on every line. Request logs
+ * carry method, url and status only, so headers such as X-Api-Key never reach the logs.
+ */
 export function createLoggerModule(service: string): DynamicModule {
   return LoggerModule.forRootAsync({
     inject: [ConfigService],
@@ -24,7 +27,14 @@ export function createLoggerModule(service: string): DynamicModule {
         base: { service },
         timestamp: stdTimeFunctions.isoTime,
         formatters: { level: (label: string) => ({ level: label }) },
-        redact: ['req.headers["x-api-key"]', 'req.headers.authorization'],
+        serializers: {
+          req: (req: IncomingMessage & { id?: unknown }) => ({
+            id: req.id,
+            method: req.method,
+            url: req.url,
+          }),
+          res: (res: ServerResponse) => ({ statusCode: res.statusCode }),
+        },
         genReqId: requestId,
         autoLogging: { ignore: (req: IncomingMessage) => req.url?.startsWith('/health') ?? false },
       },

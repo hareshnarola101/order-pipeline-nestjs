@@ -7,6 +7,12 @@ import { OrderSettlementRepository, type MessageReceipt } from './order-settleme
 
 export const PAYMENT_CONSUMER = 'order-payment';
 
+export interface MessageMeta {
+  messageId: string;
+  /** Request id of the API call that created the order, for tracing across services. */
+  correlationId?: string;
+}
+
 /**
  * Business side of `order.created`: charge the customer, then settle the order.
  * It knows nothing about AMQP; errors it throws are retried by the consumer.
@@ -20,9 +26,9 @@ export class OrderPaymentHandler {
     @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
   ) {}
 
-  async handle(event: OrderCreatedEvent, messageId: string): Promise<void> {
-    const receipt: MessageReceipt = { consumer: PAYMENT_CONSUMER, messageId };
-    const context = { orderId: event.orderId, messageId };
+  async handle(event: OrderCreatedEvent, meta: MessageMeta): Promise<void> {
+    const receipt: MessageReceipt = { consumer: PAYMENT_CONSUMER, messageId: meta.messageId };
+    const context = { orderId: event.orderId, ...meta };
 
     if (await this.settlements.isProcessed(receipt)) {
       this.logger.log(context, 'Duplicate message skipped');

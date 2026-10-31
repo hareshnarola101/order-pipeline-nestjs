@@ -14,7 +14,7 @@ import {
 } from '@app/messaging';
 import { NonRetryableError } from '../messaging/non-retryable.error';
 import { RetryPolicy } from '../messaging/retry-policy';
-import { parseOrderCreated, readAttempt } from './order-created.message';
+import { parseOrderCreated, readAttempt, readCorrelationId } from './order-created.message';
 import { OrderPaymentHandler } from './order-payment.handler';
 
 /**
@@ -78,7 +78,7 @@ export class OrderCreatedConsumer implements OnApplicationBootstrap, OnModuleDes
       if (!messageId) {
         throw new NonRetryableError('Message has no messageId');
       }
-      await this.handler.handle(event, messageId);
+      await this.handler.handle(event, { messageId, correlationId: readCorrelationId(message) });
       this.channel?.ack(message);
     } catch (error) {
       await this.onFailure(message, attempt, event, error);
@@ -94,7 +94,11 @@ export class OrderCreatedConsumer implements OnApplicationBootstrap, OnModuleDes
     const channel = this.channel!;
     const decision = this.retryPolicy.decide(attempt, error);
     const errorMessage = error instanceof Error ? error.message : String(error);
-    const context = { messageId: message.properties.messageId as unknown, orderId: event?.orderId };
+    const context = {
+      messageId: message.properties.messageId as unknown,
+      correlationId: readCorrelationId(message),
+      orderId: event?.orderId,
+    };
 
     try {
       if (decision.action === 'retry') {

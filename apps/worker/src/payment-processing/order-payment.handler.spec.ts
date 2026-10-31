@@ -41,7 +41,7 @@ describe('OrderPaymentHandler', () => {
   it('charges the stored amount and marks the order paid', async () => {
     gateway.charge.mockResolvedValue({ status: 'approved', transactionId: 'txn_1' });
 
-    await handler.handle(event, 'msg-1');
+    await handler.handle(event, { messageId: 'msg-1' });
 
     expect(gateway.charge).toHaveBeenCalledWith({
       orderId: 'order-1',
@@ -56,7 +56,7 @@ describe('OrderPaymentHandler', () => {
   it('fails the order when the payment is declined', async () => {
     gateway.charge.mockResolvedValue({ status: 'declined', reason: 'card_declined' });
 
-    await handler.handle(event, 'msg-1');
+    await handler.handle(event, { messageId: 'msg-1' });
 
     expect(settlements.markFailed).toHaveBeenCalledWith(
       'order-1',
@@ -69,7 +69,7 @@ describe('OrderPaymentHandler', () => {
   it('skips a message it has already processed without charging again', async () => {
     settlements.isProcessed.mockResolvedValue(true);
 
-    await handler.handle(event, 'msg-1');
+    await handler.handle(event, { messageId: 'msg-1' });
 
     expect(settlements.isProcessed).toHaveBeenCalledWith(receipt);
     expect(gateway.charge).not.toHaveBeenCalled();
@@ -78,7 +78,7 @@ describe('OrderPaymentHandler', () => {
   it('skips orders that are no longer pending', async () => {
     settlements.findPayableOrder.mockResolvedValue({ ...pendingOrder, status: 'PAID' });
 
-    await handler.handle(event, 'msg-1');
+    await handler.handle(event, { messageId: 'msg-1' });
 
     expect(gateway.charge).not.toHaveBeenCalled();
   });
@@ -86,13 +86,15 @@ describe('OrderPaymentHandler', () => {
   it('does not retry when the order does not exist', async () => {
     settlements.findPayableOrder.mockResolvedValue(null);
 
-    await expect(handler.handle(event, 'msg-1')).rejects.toBeInstanceOf(NonRetryableError);
+    await expect(handler.handle(event, { messageId: 'msg-1' })).rejects.toBeInstanceOf(
+      NonRetryableError,
+    );
   });
 
   it('lets transient gateway errors bubble up so the message is retried', async () => {
     gateway.charge.mockRejectedValue(new PaymentGatewayUnavailableError());
 
-    await expect(handler.handle(event, 'msg-1')).rejects.toBeInstanceOf(
+    await expect(handler.handle(event, { messageId: 'msg-1' })).rejects.toBeInstanceOf(
       PaymentGatewayUnavailableError,
     );
     expect(settlements.markFailed).not.toHaveBeenCalled();

@@ -34,3 +34,8 @@ export function readAttempt(message: ConsumeMessage): number {
   const value = Number(message.properties.headers?.[MessageHeaders.Attempt] ?? 1);
   return Number.isInteger(value) && value > 0 ? value : 1;
 }
+
+export function readCorrelationId(message: ConsumeMessage): string | undefined {
+  const value: unknown = message.properties.headers?.[MessageHeaders.CorrelationId];
+  return typeof value === 'string' ? value : undefined;
+}

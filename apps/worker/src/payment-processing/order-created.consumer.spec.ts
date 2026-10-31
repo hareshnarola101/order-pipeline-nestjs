@@ -56,11 +56,14 @@ describe('OrderCreatedConsumer', () => {
   });
 
   it('acks after the handler succeeds', async () => {
-    const msg = message(event);
+    const msg = message(event, { [MessageHeaders.CorrelationId]: 'req-1' });
 
     await consumer.onMessage(msg);
 
-    expect(handler.handle).toHaveBeenCalledWith(event, 'msg-1');
+    expect(handler.handle).toHaveBeenCalledWith(event, {
+      messageId: 'msg-1',
+      correlationId: 'req-1',
+    });
     expect(channel.ack).toHaveBeenCalledWith(msg);
     expect(channel.sendToQueue).not.toHaveBeenCalled();
   });

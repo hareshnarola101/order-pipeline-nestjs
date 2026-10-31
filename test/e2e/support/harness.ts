@@ -1,5 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import { PrismaClient } from '@prisma/client';
 import amqplib from 'amqplib';
@@ -19,7 +20,9 @@ export const API_KEY = () => process.env.API_KEY!;
 
 export async function startApi(): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
-  const app = configureApp(moduleRef.createNestApplication({ bufferLogs: true }));
+  const app = configureApp(
+    moduleRef.createNestApplication<NestExpressApplication>({ bufferLogs: true }),
+  );
   // Listening once up front lets supertest fire concurrent requests at the same server.
   await app.listen(0, '127.0.0.1');
   return app;
