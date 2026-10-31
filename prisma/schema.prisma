@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+model Product {
+  id         String      @id @default(uuid()) @db.Uuid
+  sku        String      @unique
+  name       String
+  priceCents Int         @map("price_cents")
+  // Units available to sell. A CHECK constraint (see migration) keeps it >= 0.
+  stock      Int
+  createdAt  DateTime    @default(now()) @map("created_at")
+  updatedAt  DateTime    @updatedAt @map("updated_at")
+  orderItems OrderItem[]
+
+  @@map("products")
+}
+
+model Order {
+  id               String      @id @default(uuid()) @db.Uuid
+  customerId       String      @map("customer_id")
+  status           OrderStatus @default(PENDING)
+  totalCents       Int         @map("total_cents")
+  currency         String      @db.Char(3)
+  idempotencyKey   String      @unique @map("idempotency_key")
+  // SHA-256 of the normalized request body, used to reject key reuse with a different payload.
+  requestHash      String      @map("request_hash")
+  paymentReference String?     @map("payment_reference")
+  failureReason    String?     @map("failure_reason")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  items            OrderItem[]
+
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String  @id @default(uuid()) @db.Uuid
+  orderId        String  @map("order_id") @db.Uuid
+  productId      String  @map("product_id") @db.Uuid
+  quantity       Int
+  unitPriceCents Int     @map("unit_price_cents")
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product        Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// Transactional outbox: events are written in the same transaction as the order
+// and published to RabbitMQ by the relay afterwards.
+model OutboxEvent {
+  id          String    @id @db.Uuid
+  routingKey  String    @map("routing_key")
+  payload     Json
+  headers     Json      @default("{}")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  publishedAt DateTime? @map("published_at")
+  attempts    Int       @default(0)
+  lastError   String?   @map("last_error")
+
+  @@index([publishedAt, createdAt])
+  @@map("outbox_events")
+}
+
+// Inbox for the idempotent consumer: one row per (consumer, message) that has been fully handled.
+model ProcessedMessage {
+  consumer    String
+  messageId   String   @map("message_id")
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@id([consumer, messageId])
+  @@map("processed_messages")
+}
