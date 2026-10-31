@@ -8,6 +8,7 @@ module.exports = {
   moduleNameMapper: {
     '^@app/(common|database|messaging)(|/.*)$': '<rootDir>/libs/$1/src$2',
   },
+  globalSetup: '<rootDir>/test/e2e/global-setup.ts',
   setupFiles: ['<rootDir>/test/e2e/setup-env.ts'],
   testTimeout: 30000,
 };

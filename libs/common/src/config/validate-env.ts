@@ -4,6 +4,8 @@ import { validateSync } from 'class-validator';
 /**
  * Validates process.env against a class-validator schema at startup, so a
  * misconfigured container fails fast instead of at the first request.
+ * Schema fields need explicit type annotations (`PORT: number = 3000`): the
+ * string-to-number conversion is driven by the emitted decorator metadata.
  */
 export function validateEnv<T extends object>(
   schema: ClassConstructor<T>,

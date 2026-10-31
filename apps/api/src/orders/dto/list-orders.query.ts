@@ -8,7 +8,7 @@ export class ListOrdersQueryDto {
   @IsInt()
   @Min(1)
   @Max(100)
-  limit = 20;
+  limit: number = 20;
 
   @IsOptional()
   @IsString()

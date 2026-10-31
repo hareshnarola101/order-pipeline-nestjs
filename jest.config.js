@@ -9,6 +9,7 @@ module.exports = {
   moduleNameMapper: {
     '^@app/(common|database|messaging)(|/.*)$': '<rootDir>/libs/$1/src$2',
   },
+  setupFiles: ['<rootDir>/test/silence-logs.ts'],
   collectCoverageFrom: [
     'apps/**/src/**/*.ts',
     'libs/**/src/**/*.ts',
