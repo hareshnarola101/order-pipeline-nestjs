@@ -1,0 +1,116 @@
+name: order-pipeline
+
+# Host ports default to non-standard values so they do not clash with a locally
+# installed Postgres or RabbitMQ. Override any of them with environment variables.
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOG_LEVEL: info
+  DATABASE_URL: postgresql://orders:orders@postgres:5432/orders
+  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: orders
+      POSTGRES_PASSWORD: orders
+      POSTGRES_DB: orders
+    ports:
+      - '${POSTGRES_PORT:-5433}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U orders -d orders']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    # A fixed hostname keeps the node name, and so its data directory, stable across restarts.
+    hostname: rabbitmq
+    ports:
+      - '${RABBITMQ_PORT:-5673}:5672'
+      - '${RABBITMQ_UI_PORT:-15673}:15672'
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'check_port_connectivity']
+      interval: 5s
+      timeout: 10s
+      retries: 30
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://orders:orders@postgres:5432/orders
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      <<: *app-env
+      PORT: 3000
+      API_KEY: ${API_KEY:-local-dev-api-key-change-me}
+    ports:
+      - '${API_PORT:-3000}:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    stop_grace_period: 30s
+
+  worker:
+    build:
+      context: .
+      target: worker
+    environment:
+      <<: *app-env
+      PORT: 3001
+      RETRY_MAX_ATTEMPTS: 4
+      RETRY_BASE_DELAY_MS: 1000
+      FAKE_PAYMENT_FAILURE_RATE: ${FAKE_PAYMENT_FAILURE_RATE:-0}
+      FAKE_PAYMENT_DECLINE_RATE: ${FAKE_PAYMENT_DECLINE_RATE:-0}
+    ports:
+      - '${WORKER_PORT:-3001}:3001'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://localhost:3001/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    stop_grace_period: 30s
+
+volumes:
+  pgdata:
+  rabbitmq-data:

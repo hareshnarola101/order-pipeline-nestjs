@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, typecheck, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  e2e:
+    name: E2E tests (Postgres + RabbitMQ)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: orders
+          POSTGRES_PASSWORD: orders
+          POSTGRES_DB: orders_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U orders -d orders_test"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+      rabbitmq:
+        image: rabbitmq:4-management-alpine
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q check_port_connectivity"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgresql://orders:orders@localhost:5432/orders_test
+      RABBITMQ_URL: amqp://guest:guest@localhost:5672
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run test:e2e
+
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --target api -t order-pipeline-api .
+      - run: docker build --target worker -t order-pipeline-worker .

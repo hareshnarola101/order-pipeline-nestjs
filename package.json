@@ -21,7 +21,7 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest",
-    "test:e2e": "prisma migrate deploy && jest --config test/jest-e2e.config.js --runInBand"
+    "test:e2e": "jest --config test/jest-e2e.config.js --runInBand"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.8",
